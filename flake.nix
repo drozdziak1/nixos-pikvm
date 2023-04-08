@@ -16,7 +16,7 @@
         def-olay = self: super: {
           kvmd = self.callPackage ./packages/kvmd.nix { src = kvmd-src; };
         };
-        kvmd-module = import ./modules/kvmd.nix;
+        kvmd-module = ./modules/kvmd.nix;
         pkgs = import nixpkgs
           {
             inherit system;
@@ -42,6 +42,7 @@
                 kvmd-module
                 ({ pkgs, config, ... }: {
                   users.users.nixos.initialPassword = "nixos"; # Pwease change ASAP OwO
+                  hardware.pikvm.v3-hdmi-rpi4.enable = true;
                   services.openssh.enable = true;
                   services.kvmd.enable = true;
                 })

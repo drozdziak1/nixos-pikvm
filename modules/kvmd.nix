@@ -1,6 +1,8 @@
 # Main configuration options for kvmd. Note: The default overlay must be a part of your pkgs
 { config, lib, pkgs, ... }:
-let cfg = config.services.kvmd;
+let
+  cfg = config.services.kvmd;
+  hw-cfg = config.hardware.pikvm;
 in
 with lib; {
   options = {
@@ -32,10 +34,15 @@ with lib; {
         example = [ "jackaudio" "docker" ];
       };
     };
+    hardware.pikvm.v3-hdmi-rpi4.enable = mkOption {
+      type = types.bool;
+      description = "Whether to enable hardware settings for PiKVM v3 with HDMI";
+      default = false;
+    };
   };
   # 2023-03-20: Inspired by <kvmd>/configs/kvmd/os/services
-  config.systemd.services = lib.mkIf cfg.enable {
-    kvmd = {
+  config = (lib.mkIf cfg.enable {
+    systemd.services.kvmd = {
       enable = true;
       description = "PiKVM - The main daemon";
       after = [ "network.target" "network-online.target" "nss-lookup.target" ];
@@ -51,7 +58,15 @@ with lib; {
         TimeoutStopSec = 10;
         KillMode = "mixed";
       };
-      wantedBy = [ "multi-user.target" ];
     };
-  };
+    users = {
+      groups.${cfg.group} = { };
+      users.${cfg.user} = {
+        isNowmalUser = true;
+        group = cfg.group;
+      };
+    };
+  }) // (lib.mkIf hw-cfg.v3-hdmi-rpi4.enable {
+    boot.kernelModules = lib.splitString "\n" (builtins.readFile "${cfg.package.src}/configs/os/modules-load/v3-hdmi.conf");
+  });
 }
