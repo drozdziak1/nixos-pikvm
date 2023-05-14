@@ -59,13 +59,24 @@ with lib; {
         KillMode = "mixed";
       };
     };
-    users = {
+    users = config.users // {
       groups.${cfg.group} = { };
       users.${cfg.user} = {
-        isNowmalUser = true;
+        isNormalUser = true;
         group = cfg.group;
       };
     };
+    security.sudo.extraRules = [
+      {
+        groups = [ "wheel" ];
+        commands = [
+          {
+            command = "ALL";
+            options = [ "NOPASSWD" ];
+          }
+        ];
+      }
+    ];
   }) // (lib.mkIf hw-cfg.v3-hdmi-rpi4.enable {
     boot.kernelModules = lib.splitString "\n" (builtins.readFile "${cfg.package.src}/configs/os/modules-load/v3-hdmi.conf");
   });

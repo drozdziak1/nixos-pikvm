@@ -11,50 +11,80 @@
   };
 
   outputs = { self, nixpkgs, flake-utils, kvmd-src }:
-    flake-utils.lib.eachDefaultSystem (system:
-      let
-        def-olay = self: super: {
-          kvmd = self.callPackage ./packages/kvmd.nix { src = kvmd-src; };
+    let
+      def-olay = self: super: {
+        kvmd = self.callPackage ./packages/kvmd.nix { src = kvmd-src; };
+      };
+      aarch64-pkgs = import nixpkgs
+        {
+          system = "aarch64-linux";
+          overlays = [ def-olay ];
         };
-        kvmd-module = ./modules/kvmd.nix;
-        pkgs = import nixpkgs
-          {
-            inherit system;
-            overlays = [ def-olay ];
-          };
-        aarch64-pkgs = import nixpkgs
-          {
-            system = "aarch64-linux";
-            overlays = [ def-olay ];
-          };
-      in
-      {
-        overlay = def-olay;
-        packages = rec {
-          kvmd = pkgs.callPackage ./packages/kvmd.nix { src = kvmd-src; };
-          sdcard-image =
-            (nixpkgs.lib.nixosSystem {
-              system = "aarch64-linux";
-              pkgs = aarch64-pkgs;
+    in
+    {
+      nixosConfigurations = {
+        default = nixpkgs.lib.nixosSystem {
+          system = "aarch64-linux";
+          pkgs = aarch64-pkgs;
+          modules = [
+            "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
+            ./modules/kvmd.nix
+            ({ pkgs, config, ... }: {
+              users.users.nixos = {
+                initialPassword = "nixos";
+                isNormalUser = true;
+                extraGroups = [ "wheel" ];
+              };
+              hardware.pikvm.v3-hdmi-rpi4.enable = true;
+              services = {
+                openssh.enable = true;
+                kvmd.enable = true;
+              };
+            })
+          ];
+        };
+      };
+    } //
+    flake-utils.lib.eachDefaultSystem
+      (system:
+        let
+          pkgs = import nixpkgs
+            {
+              inherit system;
+              overlays = [ def-olay ];
+            };
+        in
+        {
+          overlay = def-olay;
+          packages = rec {
+            kvmd = pkgs.callPackage ./packages/kvmd.nix { src = kvmd-src; };
+            sdcard-image =
+              (nixpkgs.lib.nixosSystem {
+                system = "aarch64-linux";
+                pkgs = aarch64-pkgs;
 
-              modules = [
-                "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64-installer.nix"
-                kvmd-module
-                ({ pkgs, config, ... }: {
-                  users.users.nixos.initialPassword = "nixos"; # Pwease change ASAP OwO
-                  hardware.pikvm.v3-hdmi-rpi4.enable = true;
-                  services.openssh.enable = true;
-                  services.kvmd.enable = true;
-                })
-              ];
-            }).config.system.build.sdImage;
-        };
-        apps = rec {
-          hello = flake-utils.lib.mkApp {
-            drv = self.packages.${system}.hello;
+                modules = [
+                  "${nixpkgs}/nixos/modules/installer/sd-card/sd-image-aarch64.nix"
+                  ./modules/kvmd.nix
+                  ({ pkgs, config, ... }: {
+                    users.users.nixos = {
+                      initialPassword = "nixos"; # Pwease change ASAP OwO
+                      isNormalUser = true;
+                      extraGroups = [ "wheel" ];
+                    };
+                    hardware.pikvm.v3-hdmi-rpi4.enable = true;
+                    services.openssh.enable = true;
+                    services.kvmd.enable = true;
+                  })
+                ];
+              }).config.system.build.sdImage;
           };
-          default = hello;
-        };
-      }
-    );
+          apps = rec {
+            hello = flake-utils.lib.mkApp {
+              drv = self.packages.${system}.hello;
+            };
+            default = hello;
+          };
+        }
+      );
 }
